@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QR → 3D 树 → Litematica</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#08080f;--s1:#10101c;--s2:#181830;--bd:#282848;--ac:#4caf50;--ab:#66bb6a;--ad:#2e7d32;--ag:rgba(76,175,80,.12);--tx:#e0e0ec;--dm:#777;--rd:#ef5350}
+body{background:var(--bg);color:var(--tx);font:14px/1.6 'Noto Sans SC',system-ui,sans-serif;min-height:100vh}
+body::before{content:'';position:fixed;inset:0;background:linear-gradient(rgba(255,255,255,.015) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.015) 1px,transparent 1px);background-size:24px 24px;pointer-events:none;z-index:0}
+.app{position:relative;z-index:1;max-width:1360px;margin:0 auto;padding:16px}
+
+/* ★ header 响应式布局 */
+header{
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:center;
+  padding:20px 0 12px;position:relative;
+}
+header h1{
+  width:100%;text-align:center;
+  font-size:1rem;color:var(--ac);font-weight:700;letter-spacing:3px;
+  order:1;
+}
+header p{
+  width:100%;text-align:center;
+  color:var(--dm);margin-top:6px;font-size:.88rem;
+  order:2;
+}
+
+/* ★ 返回主页按钮 */
+.home-btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 14px;
+  background:var(--s2);border:1px solid var(--bd);border-radius:6px;
+  color:var(--dm);font-size:.8rem;font-weight:600;
+  text-decoration:none;cursor:pointer;transition:all .18s ease;
+  letter-spacing:.3px;
+  -webkit-user-select:none;user-select:none;
+  position:absolute;left:0;top:20px;
+  order:0;
+}
+.home-btn:hover{border-color:var(--ad);color:var(--ac);background:rgba(76,175,80,.06)}
+.home-btn:active{transform:scale(.96)}
+.home-btn svg{width:14px;height:14px;fill:currentColor;transition:transform .18s ease}
+.home-btn:hover svg{transform:translateX(-2px)}
+
+/* ★ 手机端：按钮脱离绝对定位，独占一行 */
+@media(max-width:600px){
+  header{flex-direction:column;gap:8px;padding:14px 0 10px}
+  .home-btn{
+    position:static;
+    align-self:flex-start;
+    order:-1;
+  }
+}
+
+.mg{display:grid;grid-template-columns:300px 1fr;gap:14px;margin-top:8px}
+@media(max-width:900px){.mg{grid-template-columns:1fr}}
+.pn{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:16px}
+.pn h3{font-size:.8rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--ac);margin-bottom:12px;font-weight:600}
+.cr{margin-bottom:12px}
+.cr label{display:block;font-size:.75rem;color:var(--dm);margin-bottom:4px;letter-spacing:.5px;font-weight:600}
+.cr input[type=text],.cr select{width:100%;padding:8px 10px;background:var(--s2);border:1px solid var(--bd);border-radius:6px;color:var(--tx);font:inherit;outline:none}
+.cr input[type=text]:focus{border-color:var(--ad)}
+.cr input[type=range]{width:100%;accent-color:var(--ac);cursor:pointer}
+.rv{float:right;font:600 .8rem monospace;color:var(--ac);margin-top:-18px}
+.btn{display:block;width:100%;padding:10px;border:none;border-radius:6px;font:600 .9rem/1.2 inherit;cursor:pointer;transition:all .15s}
+.bp{background:var(--ac);color:#0a0a0a;margin-bottom:6px}.bp:hover{background:var(--ab)}
+.bs{background:var(--s2);color:var(--tx);border:1px solid var(--bd)}.bs:hover{border-color:var(--ad);color:var(--ac)}
+.bs:disabled{opacity:.3;cursor:not-allowed}
+.row{display:flex;gap:6px;margin-top:6px}
+.sw{width:26px;height:26px;border-radius:5px;border:2px solid transparent;cursor:pointer}
+.sw.on{border-color:var(--ac)}
+.pr{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:1100px){.pr{grid-template-columns:1fr}}
+.sp{background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:12px;min-height:180px}
+.sp h4{font-size:.72rem;color:var(--dm);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+#qrCanvas{display:block;margin:0 auto;image-rendering:pixelated;background:#fff;padding:3px;border-radius:3px}
+#tc{width:100%;height:400px;border-radius:6px;overflow:hidden;background:#0d0d1a;cursor:grab}
+#tc:active{cursor:grabbing}
+.sb{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.st{background:var(--s1);border:1px solid var(--bd);border-radius:6px;padding:6px 10px;flex:1;min-width:80px;text-align:center}
+.st b{display:block;font:.95rem monospace;color:var(--ac)}.st i{font-size:.65rem;color:var(--dm);font-style:normal}
+#sm{margin-top:8px;font-size:.78rem;padding:8px 10px;border-radius:5px;display:none;white-space:pre-wrap}
+#sm.ok{display:block;background:rgba(76,175,80,.08);color:var(--ac);border:1px solid rgba(76,175,80,.25)}
+#sm.er{display:block;background:rgba(239,83,80,.08);color:var(--rd);border:1px solid rgba(239,83,80,.25)}
+#dg{margin-top:6px;font:600 .6rem monospace;color:var(--dm);white-space:pre;word-break:break-all;max-height:140px;overflow-y:auto;display:none;background:var(--s2);padding:6px;border-radius:4px;border:1px solid var(--bd)}
+.tg{display:flex;gap:4px;margin-top:6px}
+.tg button{flex:1;padding:6px;font:.68rem/1 inherit;background:var(--s2);color:var(--dm);border:1px solid var(--bd);border-radius:5px;cursor:pointer}
+.tg button:hover{border-color:var(--ad);color:var(--ac)}
+</style>
+</head>
+<body>
+<div class="app">
+
+<header>
+  <a class="home-btn" href="/" title="返回主页">
+    <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+    主页
+  </a>
+  <h1>QR → 3D TREE → LITEMATICA</h1>
+  <p>二维码转 Minecraft 3D 树形混凝土 · 导出投影</p>
+</header>
+
+<div class="mg">
+<div>
+<div class="pn">
+<h3>设置</h3>
+<div class="cr"><label>QR 内容</label><input type="text" id="inp" value="hello" placeholder="文本或URL"></div>
+<div class="cr"><label>纠错</label><select id="ec"><option value="L">L 7%</option><option value="M" selected>M 15%</option><option value="Q">Q 25%</option><option value="H">H 30%</option></select></div>
+<div class="cr"><label>树冠高 <span class="rv" id="v1">20</span></label><input type="range" id="r1" min="6" max="50" value="20"></div>
+<div class="cr"><label>树干高 <span class="rv" id="v2">4</span></label><input type="range" id="r2" min="0" max="20" value="4"></div>
+<div class="cr"><label>半径 <span class="rv" id="v3">0.48</span></label><input type="range" id="r3" min="30" max="65" value="48"></div>
+<div class="cr"><label>颜色</label>
+<div class="row">
+<div class="sw on" data-b="minecraft:green_concrete" style="background:#4a5e28"></div>
+<div class="sw" data-b="minecraft:lime_concrete" style="background:#6ea12c"></div>
+<div class="sw" data-b="minecraft:dark_prismarine" style="background:#335b50"></div>
+<div class="sw" data-b="minecraft:emerald_block" style="background:#17dd62"></div>
+<div class="sw" data-b="minecraft:ochre_froglight" style="background:#ecd58a"></div>
+</div></div>
+<button class="btn bp" id="bGen">生成 3D 树</button>
+<button class="btn bs" id="bExp" disabled>导出 .litematic</button>
+<button class="btn bs" id="bRaw" disabled style="margin-top:4px">下载原始 NBT</button>
+<div id="sm"></div><div id="dg"></div>
+</div></div>
+<div>
+<div class="pr">
+<div class="sp"><h4>QR 码</h4><canvas id="qrCanvas" width="200" height="200"></canvas></div>
+<div class="sp" style="padding:0;overflow:hidden"><div id="tc"></div></div>
+</div>
+<div class="tg"><button id="cT">俯视</button><button id="cS">侧视</button><button id="cP">透视</button><button id="cR">重置</button></div>
+<div class="sb">
+<div class="st"><b id="q1">-</b><i>QR版本</i></div>
+<div class="st"><b id="q2">-</b><i>尺寸</i></div>
+<div class="st"><b id="q3">-</b><i>方块</i></div>
+<div class="st"><b id="q4">-</b><i>文件</i></div>
+<div class="st"><b id="q5">-</b><i>bits/pal</i></div>
+</div>
+</div></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+(function(){
+'use strict';
+var E=function(id){return document.getElementById(id)};
+var model=null,nbtData=null,sel='minecraft:green_concrete';
+function stat(m,o){var e=E('sm');e.textContent=m;e.className=o?'ok':'er'}
+function diag(t){var e=E('dg');e.style.display='block';e.textContent=t}
+function n2(x,z){var v=Math.sin(x*127.1+z*311.7)*43758.5453;return v-Math.floor(v)}
+function sn(x,z){var ix=Math.floor(x),iz=Math.floor(z),fx=x-ix,fz=z-iz;var a=n2(ix,iz),b=n2(ix+1,iz),c=n2(ix,iz+1),d=n2(ix+1,iz+1);var u=fx*fx*(3-2*fx),v=fz*fz*(3-2*fz);return a*(1-u)*(1-v)+b*u*(1-v)+c*(1-u)*v+d*u*v}
+function mkQR(t,ec){var qr=qrcode(0,ec);qr.addData(t);qr.make();var sz=qr.getModuleCount(),g=[];for(var r=0;r<sz;r++){g[r]=[];for(var c=0;c<sz;c++)g[r][c]=qr.isDark(r,c)?1:0}return{grid:g,size:sz,ver:(sz-17)/4}}
+function drawQR(g,sz){var cv=E('qrCanvas'),ms=Math.max(2,Math.floor(260/sz)),pd=4,t=(sz+pd*2)*ms;cv.width=t;cv.height=t;var cx=cv.getContext('2d');cx.fillStyle='#fff';cx.fillRect(0,0,t,t);cx.fillStyle='#111';for(var r=0;r<sz;r++)for(var c=0;c<sz;c++)if(g[r][c])cx.fillRect((c+pd)*ms,(r+pd)*ms,ms,ms)}
+function buildTree(g,sz,o){
+  var mH=o.maxH,tH=o.trunkH,rF=o.rF,cb=o.cb,cx=(sz-1)/2,cz=(sz-1)/2,canR=sz*rF,blocks={},mY=0;
+  var C=1,T=2,GR=3,TP=4,pal=['minecraft:air',cb,'minecraft:brown_concrete','minecraft:light_gray_concrete','minecraft:lime_concrete'];
+  function set(x,y,z,t){var k=x+','+y+','+z;if(!(k in blocks)||t>blocks[k])blocks[k]=t;if(y>mY)mY=y}
+  for(var r=0;r<sz;r++)for(var c=0;c<sz;c++){
+    if(!g[r][c])continue;var x=c,z2=r,dx=x-cx,dz=z2-cz,d=Math.sqrt(dx*dx+dz*dz),nd=d/canR;
+    if(nd<1){var b2=mH*Math.sqrt(Math.max(0,1-nd*nd));var n1=.65+.7*sn(x*.45+1.3,z2*.5+.7),n2v=.75+.5*n2(x*3.1,z2*3.1);var eg=nd>.7?(.55+.9*n2(x*5,z2*5)):1;var ch=Math.max(3,Math.round(b2*n1*n2v*eg));for(var y=tH;y<tH+ch;y++)set(x,y,z2,y>=tH+ch-2?TP:C)}else set(x,0,z2,GR)}
+  var ts=Math.max(0,Math.floor(sz/12)),tcx=Math.floor(cx),tcz=Math.floor(cz);
+  for(var dx2=-ts;dx2<=ts;dx2++)for(var dz2=-ts;dz2<=ts;dz2++){var tx=tcx+dx2,tz=tcz+dz2;if(tx<0||tx>=sz||tz<0||tz>=sz||!g[tz]||!g[tz][tx])continue;for(var ty=0;ty<=Math.min(tH,mY);ty++){var tk=tx+','+ty+','+tz;if(!(tk in blocks)||blocks[tk]!==C)set(tx,ty,tz,T)}}
+  var totH=mY+1,arr=[];for(var y=0;y<totH;y++)for(var z=0;z<sz;z++)for(var x=0;x<sz;x++)arr.push(blocks[x+','+y+','+z]||0);
+  var cnt=0;for(var k in blocks)if(blocks[k])cnt++;
+  return{a:arr,x:sz,y:totH,z:sz,pal:pal,cnt:cnt}
+}
+function NBT(){this.b=[]}
+NBT.prototype={
+  u8:function(v){this.b.push(v&255)},i16:function(v){this.b.push((v>>8)&255);this.b.push(v&255)},
+  i32:function(v){this.b.push((v>>>24)&255);this.b.push((v>>>16)&255);this.b.push((v>>>8)&255);this.b.push(v&255)},
+  i64:function(v){var bi=BigInt(v);for(var i=56n;i>=0n;i-=8n)this.b.push(Number((bi>>i)&255n))},
+  f32:function(v){var a=new ArrayBuffer(4);new DataView(a).setFloat32(0,v,false);for(var i=0;i<4;i++)this.b.push(new Uint8Array(a)[i])},
+  str:function(v){var e=new TextEncoder().encode(v);this.i16(e.length);for(var i=0;i<e.length;i++)this.b.push(e[i])},
+  val:function(t,v){
+    switch(t){
+      case 1:this.u8(v);break;case 2:this.i16(v);break;case 3:this.i32(v);break;case 4:this.i64(v);break;
+      case 5:this.f32(v);break;case 8:this.str(v);break;
+      case 9:this.u8(v.et);this.i32(v.items.length);for(var i=0;i<v.items.length;i++)this.val(v.et,v.items[i]);break;
+      case 10:var ks=Object.keys(v);for(var i=0;i<ks.length;i++){var k=ks[i],e=v[k];this.u8(e[0]);this.str(k);this.val(e[0],e[1])}this.u8(0);break;
+      case 11:this.i32(v.length);for(var i=0;i<v.length;i++)this.i32(v[i]);break;
+      case 12:this.i32(v.length);for(var i=0;i<v.length;i++)this.i64(v[i]);break;
+    }
+  },
+  write:function(t,v){this.u8(t);this.str('');this.val(t,v);return new Uint8Array(this.b)}
+};
+function pack(arr,bits){
+  var totalBits=arr.length*bits,nLongs=Math.ceil(totalBits/64),longs=[],i,bp,li,bo,v;
+  for(i=0;i<nLongs;i++)longs.push(0n);
+  for(i=0;i<arr.length;i++){bp=i*bits;li=bp>>6;bo=bp&63;v=BigInt(arr[i]);longs[li]|=v<<BigInt(bo);if(bo+bits>64)longs[li+1]|=v>>BigInt(64-bo)}
+  var mask=(1n<<64n)-1n;for(i=0;i<nLongs;i++)longs[i]&=mask;
+  return longs
+}
+function verifyPack(arr,bits,longs){
+  var bitmask=(1<<bits)-1,errs=0,ft='';
+  for(var i=0;i<arr.length;i++){var bp=i*bits,li=bp>>6,bo=bp&63,got=Number((longs[li]>>BigInt(bo))&BigInt(bitmask));
+    if(bo+bits>64){var ov=bo+bits-64;got=Number(longs[li]>>BigInt(bo))&bitmask;var hi=Number(longs[li+1]&BigInt((1<<ov)-1));got|=hi<<(bits-ov);got&=bitmask}
+    if(got!==arr[i]){errs++;if(errs<=3)ft+='  ['+i+'] exp='+arr[i]+' got='+got+'\n'}}
+  return{ok:errs===0,errs:errs,detail:ft}
+}
+function makeLitematica(m){
+  var pal=m.pal,bits=Math.max(2,Math.ceil(Math.log2(pal.length))),pk=pack(m.a,bits),now=BigInt(Date.now()),pi=[];
+  var vr=verifyPack(m.a,bits,pk);
+  var dt='Pal:'+pal.length+' bits:'+bits+' longs:'+pk.length+'\nPack: '+(vr.ok?'OK':'FAIL('+vr.errs+')')+'\n'+vr.detail;
+  for(var i=0;i<pal.length;i++)pi.push({Name:[8,pal[i]]});
+  var root={Version:[3,6],SubVersion:[3,1],Metadata:[10,{Author:[8,'QR3DTree'],Description:[8,''],Name:[8,'QR3DTree'],RegionCount:[3,1],TimeCreated:[4,now],TimeModified:[4,now],TotalBlocks:[4,BigInt(m.cnt)],TotalVolume:[4,BigInt(m.x*m.y*m.z)],EnclosingSize:[10,{x:[3,m.x],y:[3,m.y],z:[3,m.z]}],Regions:[9,{et:8,items:['QR3DTree']}]}],Regions:[10,{QR3DTree:[10,{BlockStates:[12,pk],BlockStatePalette:[9,{et:10,items:pi}],Entities:[9,{et:10,items:[]}],Position:[10,{x:[3,0],y:[3,0],z:[3,0]}],Size:[10,{x:[3,m.x],y:[3,m.y],z:[3,m.z]}],TileEntities:[9,{et:10,items:[]}]}]}]};
+  return{bytes:new NBT().write(10,root),bits:bits,pal:pal.length,diag:dt}
+}
+function diagNBT(b){
+  var L=[],TN=['End','Byte','Short','Int','Long','Float','Double','ByteArray','String','List','Compound','IntArray','LongArray'],p=0;
+  function u8(){return b[p++]}function i16(){var v=(b[p]<<8)|b[p+1];p+=2;return v}function i32(){var v=((b[p]<<24)|(b[p+1]<<16)|(b[p+2]<<8)|b[p+3])>>>0;p+=4;return v}
+  function s(){var n=i16();var t=new TextDecoder().decode(b.slice(p,p+n));p+=n;return t}function l64(){var h=i32(),lo=i32();return'('+((BigInt(h)<<32n)|BigInt(lo))+')'}
+  try{var rt=u8();L.push('Root: '+TN[rt]);var rn=s();L.push('Name: "'+rn+'"');rdC('  ');L.push('---');L.push('Bytes: '+p+'/'+b.length+(p===b.length?' OK':' MISMATCH'))}catch(e){L.push('ERR at '+p+': '+e.message)}
+  function rdC(ind){while(p<b.length){var tt=u8();if(tt===0){L.push(ind+'[END]');return}var nm=s();L.push(ind+TN[tt]+' "'+nm+'"');rdP(tt,ind+'  ')}}
+  function rdP(tt,ind){switch(tt){
+    case 1:L.push(ind+'= '+u8());break;case 2:L.push(ind+'= '+i16());break;case 3:L.push(ind+'= '+i32());break;
+    case 4:L.push(ind+'= '+l64());break;case 5:p+=4;L.push(ind+'= <f>');break;case 8:L.push(ind+'= "'+s()+'"');break;
+    case 9:var et=u8(),n=i32();L.push(ind+'List['+TN[et]+'] x'+n);var sh=Math.min(n,2);for(var i=0;i<sh;i++){L.push(ind+' ['+i+']');rdP(et,ind+'  ')}for(var j=sh;j<n;j++)skip1(et);break;
+    case 10:rdC(ind);break;case 11:{var n11=i32();L.push(ind+'IntArr['+n11+']');p+=n11*4;break}case 12:{var n12=i32();L.push(ind+'LongArr['+n12+']');p+=n12*8;break}}}
+  function skip1(tt){switch(tt){case 1:p++;break;case 2:p+=2;break;case 3:p+=4;break;case 4:p+=8;break;case 5:p+=4;break;case 8:p+=i16();break;case 9:var et=u8(),n=i32();for(var i=0;i<n;i++)skip1(et);break;case 10:while(p<b.length){var t=u8();if(t===0)return;var n2=i16();p+=n2;skip1(t)}break;case 11:p+=i32()*4;break;case 12:p+=i32()*8;break}}
+  return L.join('\n')
+}
+var scene,cam,ren,cn=E('tc'),treeG,tTarget,tSph,hasThree=(typeof THREE!=='undefined');
+function init3D(){
+  if(!hasThree){cn.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#555">Three.js 未加载</div>';return}
+  var W=cn.clientWidth,H=cn.clientHeight;
+  scene=new THREE.Scene();scene.background=new THREE.Color(0x0d0d1a);scene.fog=new THREE.Fog(0x0d0d1a,80,250);
+  cam=new THREE.PerspectiveCamera(50,W/H,.1,500);cam.position.set(35,30,35);
+  ren=new THREE.WebGLRenderer({antialias:true});ren.setSize(W,H);ren.setPixelRatio(Math.min(devicePixelRatio,2));cn.appendChild(ren.domElement);
+  scene.add(new THREE.AmbientLight(0x556677,.7));
+  var sl=new THREE.DirectionalLight(0xffeedd,1.1);sl.position.set(1,2.2,1.5);scene.add(sl);
+  var fl=new THREE.DirectionalLight(0x4466aa,.3);fl.position.set(-1,.5,-1);scene.add(fl);
+  tTarget=new THREE.Vector3(12,10,12);tSph=new THREE.Spherical(55,Math.PI/3,Math.PI/4);updCam();
+  var drag=false,lx=0,ly=0;
+  ren.domElement.addEventListener('pointerdown',function(e){drag=true;lx=e.clientX;ly=e.clientY;ren.domElement.setPointerCapture(e.pointerId)});
+  window.addEventListener('pointerup',function(){drag=false});
+  window.addEventListener('pointermove',function(e){if(!drag)return;tSph.theta-=(e.clientX-lx)*.005;tSph.phi=Math.max(.1,Math.min(Math.PI-.1,tSph.phi-(e.clientY-ly)*.005));lx=e.clientX;ly=e.clientY;updCam()});
+  ren.domElement.addEventListener('wheel',function(e){e.preventDefault();tSph.radius=Math.max(5,Math.min(300,tSph.radius*(1+e.deltaY*.001)));updCam()},{passive:false});
+  window.addEventListener('resize',function(){cam.aspect=cn.clientWidth/cn.clientHeight;cam.updateProjectionMatrix();ren.setSize(cn.clientWidth,cn.clientHeight)});
+  (function L(){requestAnimationFrame(L);ren.render(scene,cam)})()
+}
+function updCam(){if(!cam)return;var o=new THREE.Vector3().setFromSpherical(tSph);cam.position.copy(tTarget).add(o);cam.lookAt(tTarget)}
+function setView(th,ph,r){if(!hasThree||!tSph)return;tSph.theta=th;tSph.phi=ph;tSph.radius=r;updCam()}
+var BC={'minecraft:air':0,'minecraft:green_concrete':0x4a5e28,'minecraft:lime_concrete':0x6ea12c,'minecraft:dark_prismarine':0x335b50,'minecraft:emerald_block':0x17dd62,'minecraft:ochre_froglight':0xecd58a,'minecraft:brown_concrete':0x6b4226,'minecraft:light_gray_concrete':0x8d8d86};
+function render3D(m){
+  if(!hasThree||!scene)return;if(treeG)scene.remove(treeG);treeG=new THREE.Group();
+  var geo=new THREE.BoxGeometry(.96,.96,.96),cnts={};
+  for(var i=0;i<m.a.length;i++){var t=m.a[i];if(t)cnts[t]=(cnts[t]||0)+1}
+  var mm={};for(var ty in cnts){var c=BC[m.pal[ty]]||0xccc;var mesh=new THREE.InstancedMesh(geo,new THREE.MeshLambertMaterial({color:c}),cnts[ty]);treeG.add(mesh);mm[ty]={m:mesh,i:0}}
+  var dm=new THREE.Object3D(),idx=0;
+  for(var y=0;y<m.y;y++)for(var z=0;z<m.z;z++)for(var x=0;x<m.x;x++){var bt=m.a[idx++];if(!bt)continue;var e=mm[bt];dm.position.set(x,y,z);dm.updateMatrix();e.m.setMatrixAt(e.i++,dm.matrix)}
+  for(var t in mm)mm[t].m.instanceMatrix.needsUpdate=true;
+  var gm=new THREE.Mesh(new THREE.PlaneGeometry(m.x+8,m.z+8),new THREE.MeshLambertMaterial({color:0x1a1a25,transparent:true,opacity:.6}));
+  gm.rotation.x=-Math.PI/2;gm.position.set((m.x-1)/2,-.48,(m.z-1)/2);treeG.add(gm);scene.add(treeG);
+  tTarget.set((m.x-1)/2,m.y*.3,(m.z-1)/2);tSph.radius=Math.max(m.x,m.z)*1.8;tSph.phi=Math.PI/3;tSph.theta=Math.PI/4;updCam()
+}
+['r1','r2','r3'].forEach(function(id){E(id).addEventListener('input',function(){var v=E(id).value;if(id==='r1')E('v1').textContent=v;else if(id==='r2')E('v2').textContent=v;else E('v3').textContent=(v/100).toFixed(2)})});
+document.querySelectorAll('.sw').forEach(function(s){s.addEventListener('click',function(){document.querySelectorAll('.sw').forEach(function(x){x.classList.remove('on')});s.classList.add('on');sel=s.dataset.b})});
+function onGen(){
+  try{
+    var text=E('inp').value.trim();if(!text){stat('请输入内容',0);return}
+    if(typeof qrcode==='undefined'){stat('qrcode 库未加载',0);return}
+    if(typeof pako==='undefined'){stat('pako 库未加载',0);return}
+    var qr=mkQR(text,E('ec').value);drawQR(qr.grid,qr.size);
+    model=buildTree(qr.grid,qr.size,{maxH:+E('r1').value,trunkH:+E('r2').value,rF:+E('r3').value/100,cb:sel});
+    render3D(model);var r=makeLitematica(model);nbtData=r.bytes;
+    diag('=== Pack ===\n'+r.diag+'\n\n=== NBT ===\n'+diagNBT(r.bytes));
+    var gz=pako.gzip(new Uint8Array(r.bytes)).length;
+    E('q1').textContent=qr.ver;E('q2').textContent=model.x+'x'+model.y+'x'+model.z;
+    E('q3').textContent=model.cnt.toLocaleString();E('q4').textContent=(gz/1024).toFixed(1)+'KB';
+    E('q5').textContent=r.bits+'/'+r.pal;E('bExp').disabled=false;E('bRaw').disabled=false;
+    stat('OK '+model.x+'x'+model.y+'x'+model.z+' '+model.cnt+' blocks',1)
+  }catch(e){console.error(e);stat('Error: '+e.message,0);diag(e.stack||String(e))}
+}
+function onExp(){if(!model||!nbtData)return;try{var gz=pako.gzip(new Uint8Array(nbtData));var u=URL.createObjectURL(new Blob([gz],{type:'application/octet-stream'}));var a=document.createElement('a');a.href=u;a.download='QR3DTree_'+model.x+'x'+model.y+'x'+model.z+'.litematic';a.click();URL.revokeObjectURL(u);stat('已导出 ('+(gz.length/1024).toFixed(1)+' KB)',1)}catch(e){stat('导出失败: '+e.message,0)}}
+function onRaw(){if(!nbtData)return;var u=URL.createObjectURL(new Blob([nbtData],{type:'application/octet-stream'}));var a=document.createElement('a');a.href=u;a.download='debug_nbt.bin';a.click();URL.revokeObjectURL(u)}
+E('bGen').onclick=onGen;E('bExp').onclick=onExp;E('bRaw').onclick=onRaw;
+E('inp').addEventListener('keydown',function(e){if(e.key==='Enter')onGen()});
+E('cT').onclick=function(){setView(0,.01,60)};E('cS').onclick=function(){setView(0,Math.PI/4,60)};
+E('cP').onclick=function(){setView(Math.PI/4,Math.PI/3,50)};E('cR').onclick=function(){setView(Math.PI/4,Math.PI/3,50)};
+init3D();onGen();
+})();
+</script>
+</body>
+</html>
